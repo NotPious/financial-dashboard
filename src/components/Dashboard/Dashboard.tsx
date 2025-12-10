@@ -144,7 +144,6 @@ const Dashboard: React.FC = () => {
           {/* Watchlist Section */}
           <section
             className="card"
-            role="region"
             aria-label="Stock watchlist"
           >
             <h2 className="text-xl font-semibold mb-4 text-neutral-900">

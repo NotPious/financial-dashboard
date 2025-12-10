@@ -39,7 +39,6 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
   return (
     <section
       className="card"
-      role="region"
       aria-label="Portfolio summary"
     >
       <h2 className="text-xl font-semibold mb-4 text-neutral-900">

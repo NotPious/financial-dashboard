@@ -32,7 +32,6 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ indices, loading = fals
   return (
     <section
       className="card"
-      role="region"
       aria-label="Market overview"
     >
       <h2 className="text-xl font-semibold mb-4 text-neutral-900">
@@ -43,8 +42,9 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ indices, loading = fals
         {indices.map((index) => {
            const isNegative = index.changePercent < 0;
            const arrow = isNegative ? '↓' : '↑';
-           const sign = isNegative ? '-' : '+';
-           const formattedPercent = `${sign}${Math.abs(index.changePercent).toFixed(2)}%`;
+//           const sign = isNegative ? '-' : '+';
+//           const formattedPercent = `${sign}${Math.abs(index.changePercent).toFixed(2)}%`;
+           const formattedPercent = formatPercent(index.changePercent);
            const badgeClasses = isNegative
              ? 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-danger-100 text-danger-800'
              : 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800';
@@ -80,7 +80,7 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ indices, loading = fals
                  <p
                    className={`text-sm mt-1 ${isNegative ? 'text-danger-600' : 'text-success-600'}`}
                  >
-                   {sign}{formatCurrency(Math.abs(index.change), 2)}
+                   {formatPercent(index.change)}
                  </p>
                </div>
              </div>
