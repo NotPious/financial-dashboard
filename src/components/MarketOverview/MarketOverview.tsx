@@ -3,7 +3,7 @@
  * Displays key market indices and statistics
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { MarketIndex } from '../../types/stock.types';
 import { formatCurrency, formatPercent } from '../../utils/formatters';
 
@@ -13,6 +13,11 @@ interface MarketOverviewProps {
 }
 
 const MarketOverview: React.FC<MarketOverviewProps> = ({ indices, loading = false }) => {
+
+  useEffect(() => {
+    console.log('MarketOverview indices prop:', indices); // Log indices prop
+  }, [indices]); // Will log every time indices prop changes
+
   if (loading) {
     return (
       <div className="card">
@@ -42,8 +47,6 @@ const MarketOverview: React.FC<MarketOverviewProps> = ({ indices, loading = fals
         {indices.map((index) => {
            const isNegative = index.changePercent < 0;
            const arrow = isNegative ? '↓' : '↑';
-//           const sign = isNegative ? '-' : '+';
-//           const formattedPercent = `${sign}${Math.abs(index.changePercent).toFixed(2)}%`;
            const formattedPercent = formatPercent(index.changePercent);
            const badgeClasses = isNegative
              ? 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-danger-100 text-danger-800'

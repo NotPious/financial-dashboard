@@ -17,6 +17,7 @@ export interface AlphaVantageQuoteResponse {
     '06. volume': string;
     '07. latest trading day': string;
   };
+  Information?: string; // For rate limit or other info messages
 }
 
 export interface AlphaVantageTimeSeriesResponse {
@@ -30,6 +31,7 @@ export interface AlphaVantageTimeSeriesResponse {
   };
   'Time Series (Daily)'?: Record<string, TimeSeriesData>;
   'Time Series (Intraday)'?: Record<string, TimeSeriesData>;
+  Information?: string; // For rate limit or other info messages
 }
 
 interface TimeSeriesData {

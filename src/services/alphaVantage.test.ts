@@ -131,7 +131,7 @@ describe('AlphaVantageService', () => {
           function: 'TIME_SERIES_DAILY',
           symbol: 'AAPL',
           apikey: expect.any(String),
-          outputsize: 'compact',
+//          outputsize: 'compact',
         },
       });
     });
@@ -165,7 +165,7 @@ describe('AlphaVantageService', () => {
           function: 'TIME_SERIES_WEEKLY',
           symbol: 'AAPL',
           apikey: expect.any(String),
-          outputsize: 'compact',
+//          outputsize: 'compact',
         },
       });
     });

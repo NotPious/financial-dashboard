@@ -1,59 +1,128 @@
 /**
  * Alpha Vantage API service
- * Handles all external API calls with error handling and rate limiting
+ * Handles all external API calls with error handling, rate limiting, and cooldown timer
+ * Gracefully manages API limits by logging warnings instead of throwing errors
  */
 
 import axios, { AxiosInstance } from 'axios';
-import {
-  AlphaVantageQuoteResponse,
-  AlphaVantageTimeSeriesResponse,
-} from '../types/api.types';
+import { AlphaVantageQuoteResponse, AlphaVantageTimeSeriesResponse } from '../types/api.types';
 import { StockQuote, ChartDataPoint } from '../types/stock.types';
+
+const ALPHAVANTAGE_API_KEY = process.env.REACT_APP_ALPHAVANTAGE_API_KEY || '';
+const ALPHAVANTAGE_BASE_URL = process.env.REACT_APP_ALPHAVANTAGE_BASE_URL || '';
+
+// Cooldown after rate limit message
+const RATE_LIMIT_COOLDOWN_MS = Number(process.env.REACT_APP_RATE_LIMIT_COOLDOWN_MS || '30000'); // 30 seconds default
+
+// Enforce only one inflight call at a time
+let inflightPromise: Promise<any> | null = null;
+
+// Timestamp when next request is allowed (rate-limit cooldown)
+let nextAvailableTime = 0;
 
 class AlphaVantageService {
   private api: AxiosInstance;
   private apiKey: string;
 
   constructor() {
-    this.apiKey = process.env.REACT_APP_ALPHA_VANTAGE_API_KEY || '';
+    this.apiKey = ALPHAVANTAGE_API_KEY;
     this.api = axios.create({
-      baseURL: process.env.REACT_APP_API_BASE_URL || 'https://www.alphavantage.co/query',
+      baseURL: ALPHAVANTAGE_BASE_URL,
       timeout: 10000,
     });
   }
 
+  // Ensure API calls do not exceed Alpha Vantage rate limits
+  // If a cooldown is active, wait until allowed
+  private async throttle() {
+    const now = Date.now();
+    if (now < nextAvailableTime) {
+      const waitTime = nextAvailableTime - now;
+      console.warn(`[AlphaVantage] Cooling down for ${waitTime}ms...`);
+      await new Promise((res) => setTimeout(res, waitTime));
+    }
+  }
+
+  private beginCooldown() {
+    nextAvailableTime = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+  }
+
+  private isRateLimitResponse(data: any): boolean {
+    const info = data?.Information;
+    if (!info || typeof info !== "string") return false;
+
+    return (
+      info.includes("API call frequency") ||
+      info.includes("maximum allowed") ||
+      info.includes("Thank you for using Alpha Vantage") ||
+      info.includes("rate") ||
+      info.includes("limit")
+    );
+  }
+
+
+  // Ensure only one concurrent API request is in flight (global lock)
+  private lock<T>(fn: () => Promise<T>): Promise<T> {
+    if (!inflightPromise) {
+      inflightPromise = fn().finally(() => {
+        inflightPromise = null;
+      });
+    }
+    return inflightPromise;
+  }
+  
   /**
    * Fetch real-time stock quote
    * @param symbol - Stock symbol (e.g., 'AAPL')
    */
-  async getQuote(symbol: string): Promise<StockQuote> {
-    try {
-      const response = await this.api.get<AlphaVantageQuoteResponse>('', {
-        params: {
-          function: 'GLOBAL_QUOTE',
-          symbol,
-          apikey: this.apiKey,
-        },
-      });
+  async getQuote(symbol: string): Promise<StockQuote | null> {
+    return this.lock(async () => {
+      await this.throttle();
 
-      const quote = response.data['Global Quote'];
-      
-      if (!quote || !quote['01. symbol']) {
-        throw new Error('Invalid API response or rate limit exceeded');
+      try {
+        // any cast on response.data to allow 'Information' key checking
+        const response = await this.api.get<AlphaVantageQuoteResponse | any>('', {
+          params: {
+            function: 'GLOBAL_QUOTE',
+            symbol,
+            apikey: this.apiKey,
+          },
+        });
+
+        // DEBUG: log the full API response
+        console.log(`[AlphaVantageService][DEBUG] getQuote response for ${symbol}:`, response.data);
+
+        // fail gracefully
+        if (response.data.Information) {
+          console.warn(`[AlphaVantageService] Info message from API:`, response.data['Information']);
+
+          if (this.isRateLimitResponse(response.data)) {
+            console.warn(`[AlphaVantageService] Rate limit detected while fetching quote for ${symbol}`
+            );
+            this.beginCooldown();
+            return null;
+          }
+        }
+
+        const quote = response.data['Global Quote'];
+        if (!quote || !quote['01. symbol']) {
+          console.error(`[AlphaVantageService][ERROR] Invalid quote response for ${symbol}:`, response.data);
+          return null;
+        }
+
+        return {
+          symbol: quote['01. symbol'],
+          price: parseFloat(quote['05. price']),
+          change: parseFloat(quote['09. change']),
+          changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
+          volume: parseInt(quote['06. volume'], 10),
+          timestamp: new Date(quote['07. latest trading day']),
+        };
+      } catch (error) {
+        console.error(`[AlphaVantageService][ERROR] Error fetching quote for ${symbol}:`, error);
+        return null;
       }
-
-      return {
-        symbol: quote['01. symbol'],
-        price: parseFloat(quote['05. price']),
-        change: parseFloat(quote['09. change']),
-        changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
-        volume: parseInt(quote['06. volume'], 10),
-        timestamp: new Date(quote['07. latest trading day']),
-      };
-    } catch (error) {
-      console.error(`Error fetching quote for ${symbol}:`, error);
-      throw new Error(`Failed to fetch quote for ${symbol}`);
-    }
+    });
   }
 
   /**
@@ -65,7 +134,9 @@ class AlphaVantageService {
     symbol: string,
     interval: 'daily' | 'weekly' | 'monthly' = 'daily'
   ): Promise<ChartDataPoint[]> {
-    try {
+    return this.lock(async () => {
+      await this.throttle();
+    
       const functionMap = {
         daily: 'TIME_SERIES_DAILY',
         weekly: 'TIME_SERIES_WEEKLY',
@@ -78,70 +149,75 @@ class AlphaVantageService {
         monthly: 'Time Series (Monthly)',
       };
 
-      const response = await this.api.get<AlphaVantageTimeSeriesResponse>('', {
-        params: {
-          function: functionMap[interval],
-          symbol,
-          apikey: this.apiKey,
-          outputsize: 'compact', // Last 100 data points
-        },
-      });
+      const params = {
+        function: functionMap[interval],
+        symbol,
+        apikey: this.apiKey,
+        outputsize: 'compact', // Last 100 data points
+      };
 
-      // Cast response.data for dynamic key access and narrow timeSeries shape
-      const key = keyMap[interval];
-      const timeSeries = (response.data as any)[key] as Record<
-        string,
-        Record<string, string>
-      > | undefined;
-      
-      if (!timeSeries || Object.keys(timeSeries).length === 0) {
-        throw new Error('Invalid API response or rate limit exceeded');
+      try {
+        const response = await this.api.get<AlphaVantageTimeSeriesResponse>('', { params });
+
+        // DEBUG: log the full API response
+        //console.log(`[AlphaVantageService][DEBUG] getTimeSeries response for ${symbol} (${interval}):`, response.data);
+
+        // Handle API info messages (rate limit, invalid key, etc.)
+        if (response.data.Information) {
+          console.warn(`[AlphaVantageService][INFO] Info message from API:`, response.data.Information);
+
+          if (this.isRateLimitResponse(response.data)) {
+            console.warn(`[AlphaVantageService] Rate limit detected while fetching time series for ${symbol}`);
+            this.beginCooldown();
+          }
+          return []; // Return empty array gracefully
+        }
+
+        // Cast response.data for dynamic key access
+        const raw = response.data as any;
+        const timeSeriesRaw = raw[keyMap[interval]];
+
+        if (!timeSeriesRaw || typeof timeSeriesRaw !== "object") {
+          console.error(`[AlphaVantageService][ERROR] Invalid time series response for ${symbol}:`, response.data);
+          return []; // Return empty array gracefully
+        }
+
+        return Object.entries(timeSeriesRaw).map(([date, point]) => {
+          const p = point as Record<string, string>;
+
+          return  {
+            date,
+            open: parseFloat(p['1. open']),
+            high: parseFloat(p['2. high']),
+            low: parseFloat(p['3. low']),
+            close: parseFloat(p['4. close']),
+            volume: parseInt(p['5. volume'], 10),
+          };
+      }).reverse(); // Reverse to get chronological order
+      } catch (error) {
+        console.error(`[AlphaVantageService][ERROR] Error fetching time series for ${symbol}:`, error);
+        return []; // Fail gracefully
       }
-
-      // Transform API response to chart data points
-      return Object.entries(timeSeries)
-        .map(([date, data]) => ({
-          date,
-          open: parseFloat(data['1. open']),
-          high: parseFloat(data['2. high']),
-          low: parseFloat(data['3. low']),
-          close: parseFloat(data['4. close']),
-          volume: parseInt(data['5. volume'], 10),
-        }))
-        .reverse(); // Reverse to get chronological order
-    } catch (error) {
-      console.error(`Error fetching time series for ${symbol}:`, error);
-      throw new Error(`Failed to fetch time series for ${symbol}`);
-    }
+    });
   }
 
   /**
    * Fetch multiple quotes in batch (simulated)
    * Note: Alpha Vantage free tier doesn't support true batch requests
    */
-  async getBatchQuotes(symbols: string[]): Promise<Record<string, StockQuote>> {
-    const quotes: Record<string, StockQuote> = {};
+  async getBatchQuotes(symbols: string[]): Promise<Record<string, StockQuote | null>> {
+    const results: Record<string, StockQuote | null> = {};
     
     // Fetch quotes sequentially to respect API rate limits
     for (const symbol of symbols) {
-      try {
-        quotes[symbol] = await this.getQuote(symbol);
+        results[symbol] = await this.getQuote(symbol);
         // Add delay to respect rate limits (5 calls per minute on free tier)
-        await this.delay(12000); // 12 seconds between calls
-      } catch (error) {
-        console.error(`Failed to fetch quote for ${symbol}:`, error);
-      }
+        await new Promise((res) => setTimeout(res, 1500)); // Small safe delay
     }
     
-    return quotes;
-  }
-
-  /**
-   * Utility: Add delay between API calls
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return results;
   }
 }
 
-export default new AlphaVantageService();
+const alphaVantageService = new AlphaVantageService();
+export default alphaVantageService;

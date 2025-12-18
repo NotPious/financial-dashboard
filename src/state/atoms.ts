@@ -9,13 +9,15 @@ import { StockQuote, PortfolioHolding, MarketIndex } from '../types/stock.types'
 // Selected stock symbol for detailed view
 export const selectedSymbolState = atom<string>({
   key: 'selectedSymbol',
-  default: 'AAPL',
+  //default: 'AAPL',
+  default: 'IBM',
 });
 
 // Watchlist symbols
 export const watchlistState = atom<string[]>({
   key: 'watchlist',
-  default: ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'],
+//  default: ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA'],
+  default: ['IBM', 'MSFT'],
 });
 
 // Stock quotes cache

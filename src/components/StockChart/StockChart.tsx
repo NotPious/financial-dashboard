@@ -27,7 +27,7 @@ interface StockChartProps {
 const StockChart: React.FC<StockChartProps> = ({ data, symbol, loading = false }) => {
   // Memoize chart data processing
   const chartData = useMemo(() => {
-    return data.map(point => ({
+    return (Array.isArray(data) ? data : []).map(point => ({
       ...point,
       formattedDate: formatDate(point.date),
     }));
