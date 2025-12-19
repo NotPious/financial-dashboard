@@ -1,6 +1,7 @@
 import React from 'react';
 import { useRecoilState, useRecoilValue } from 'recoil';
-import { selectedSymbolState, watchlistState, marketIndicesState } from '../../state/atoms';
+//import { selectedSymbolState, watchlistState, marketIndicesState } from '../../state/atoms';
+import { selectedSymbolState, watchlistState } from '../../state/atoms';
 import { totalPortfolioValueSelector, totalPortfolioGainLossSelector } from '../../state/selectors';
 
 import { useStockData } from '../../hooks/useStockData';
@@ -33,10 +34,9 @@ const Dashboard: React.FC<DashboardProps> = ({ debugSection }) => {
   const stockHook = useStockData(selectedSymbol, "daily", { enabled: activeStock })
   const portfolioHook = usePortfolioData({ enabled: activePortfolio })
 
-  const marketIndices = useRecoilValue(marketIndicesState);
-  console.log("Market indices from Recoil state in Dashboard:", marketIndices);
-
-  console.log('MarketHook data:', marketHook.data); // Log data here
+//  const marketIndices = useRecoilValue(marketIndicesState);
+//  console.log("Market indices from Recoil state in Dashboard:", marketIndices);
+//  console.log('MarketHook data:', marketHook.data); // Log data here
 
   return (
     <div className="min-h-screen bg-neutral-50">

@@ -11,14 +11,19 @@ import { StockQuote, ChartDataPoint } from '../types/stock.types';
 const ALPHAVANTAGE_API_KEY = process.env.REACT_APP_ALPHAVANTAGE_API_KEY || '';
 const ALPHAVANTAGE_BASE_URL = process.env.REACT_APP_ALPHAVANTAGE_BASE_URL || '';
 
-// Cooldown after rate limit message
-const RATE_LIMIT_COOLDOWN_MS = Number(process.env.REACT_APP_RATE_LIMIT_COOLDOWN_MS || '30000'); // 30 seconds default
+// Delay between API calls to respect rate limits
+const RATE_LIMIT_DELAY_MS = Number(process.env.REACT_APP_RATE_LIMIT_DELAY_MS || '12000');
 
 // Enforce only one inflight call at a time
 let inflightPromise: Promise<any> | null = null;
 
 // Timestamp when next request is allowed (rate-limit cooldown)
 let nextAvailableTime = 0;
+
+export const getAlphaVantageWaitMs = () => {
+  const now = Date.now();
+  return Math.max(0, nextAvailableTime - now);
+};
 
 class AlphaVantageService {
   private api: AxiosInstance;
@@ -44,7 +49,7 @@ class AlphaVantageService {
   }
 
   private beginCooldown() {
-    nextAvailableTime = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+    nextAvailableTime = Date.now() + RATE_LIMIT_DELAY_MS;
   }
 
   private isRateLimitResponse(data: any): boolean {
@@ -60,7 +65,6 @@ class AlphaVantageService {
     );
   }
 
-
   // Ensure only one concurrent API request is in flight (global lock)
   private lock<T>(fn: () => Promise<T>): Promise<T> {
     if (!inflightPromise) {
@@ -75,8 +79,8 @@ class AlphaVantageService {
    * Fetch real-time stock quote
    * @param symbol - Stock symbol (e.g., 'AAPL')
    */
-  async getQuote(symbol: string): Promise<StockQuote | null> {
-    return this.lock(async () => {
+  async getQuote(symbol: string, skipLock = false): Promise<StockQuote | null> {
+    const fetchQuoteWithDelay = async () => {
       await this.throttle();
 
       try {
@@ -97,8 +101,7 @@ class AlphaVantageService {
           console.warn(`[AlphaVantageService] Info message from API:`, response.data['Information']);
 
           if (this.isRateLimitResponse(response.data)) {
-            console.warn(`[AlphaVantageService] Rate limit detected while fetching quote for ${symbol}`
-            );
+            console.warn(`[AlphaVantageService] Rate limit detected while fetching quote for ${symbol}`);
             this.beginCooldown();
             return null;
           }
@@ -122,9 +125,11 @@ class AlphaVantageService {
         console.error(`[AlphaVantageService][ERROR] Error fetching quote for ${symbol}:`, error);
         return null;
       }
-    });
-  }
-
+    }
+    if (skipLock) return fetchQuoteWithDelay();
+    return this.lock(fetchQuoteWithDelay);
+  };
+ 
   /**
    * Fetch time series data for charting
    * @param symbol - Stock symbol
@@ -160,14 +165,14 @@ class AlphaVantageService {
         const response = await this.api.get<AlphaVantageTimeSeriesResponse>('', { params });
 
         // DEBUG: log the full API response
-        //console.log(`[AlphaVantageService][DEBUG] getTimeSeries response for ${symbol} (${interval}):`, response.data);
+        console.log(`[AlphaVantageService][DEBUG] getTimeSeries response for ${symbol} (${interval}):`, response.data);
 
         // Handle API info messages (rate limit, invalid key, etc.)
         if (response.data.Information) {
-          console.warn(`[AlphaVantageService][INFO] Info message from API:`, response.data.Information);
+          console.warn(`[AlphaVantageService][WARN] Info message from API:`, response.data.Information);
 
           if (this.isRateLimitResponse(response.data)) {
-            console.warn(`[AlphaVantageService] Rate limit detected while fetching time series for ${symbol}`);
+            console.warn(`[AlphaVantageService][WARN] Rate limit detected while fetching time series for ${symbol}`);
             this.beginCooldown();
           }
           return []; // Return empty array gracefully
@@ -207,16 +212,51 @@ class AlphaVantageService {
    */
   async getBatchQuotes(symbols: string[]): Promise<Record<string, StockQuote | null>> {
     const results: Record<string, StockQuote | null> = {};
-    
-    // Fetch quotes sequentially to respect API rate limits
+
+    // Track the last request time to respect the free tier
+    let lastRequestTime = 0;
+
+    // Fetch a single symbol with retries
+    const fetchQuoteWithRetry = async (
+      symbol: string,
+      retries = 3
+    ): Promise<StockQuote | null> => {
+      console.log(`[AlphaVantageService][DEBUG] getBatchQuotes starting fetch for symbol: ${symbol}`);
+
+      const now = Date.now();
+      const elapsed = now - lastRequestTime;
+
+      if (elapsed < RATE_LIMIT_DELAY_MS) {
+        const waitMs = RATE_LIMIT_DELAY_MS - elapsed;
+        console.log(`[AlphaVantageService][DEBUG] getBatchQuotes waiting ${waitMs}ms before fetching ${symbol}`);
+        await new Promise((res) => setTimeout(res, waitMs));
+      }
+
+      lastRequestTime = Date.now();
+      const quote = await this.getQuote(symbol, true);
+
+      if (quote) {
+        console.log(`[AlphaVantageService][DEBUG] getBatchQuotes fetched quote for ${symbol}:`, quote);
+        return quote;
+      } else if (retries > 0) {
+        console.warn(`[AlphaVantageService][WARN] getBatchQuotes retrying ${symbol}, retries left: ${retries}`);
+        await new Promise((res) => setTimeout(res, RATE_LIMIT_DELAY_MS));
+        return fetchQuoteWithRetry(symbol, retries - 1);
+      } else {
+        console.warn(`[AlphaVantageService][DEBUG] getBatchQuotes quote for ${symbol} returned null (rate limit or error)`);
+        return null;
+      }
+    };
+
     for (const symbol of symbols) {
-        results[symbol] = await this.getQuote(symbol);
-        // Add delay to respect rate limits (5 calls per minute on free tier)
-        await new Promise((res) => setTimeout(res, 1500)); // Small safe delay
+      console.log(`[AlphaVantageService][DEBUG] getBatchQuotes looping symbol: ${symbol}`);
+      results[symbol] = await fetchQuoteWithRetry(symbol);
     }
-    
+
+    console.log('[AlphaVantageService][DEBUG] getBatchQuotes all symbols processed:', results);
     return results;
   }
+
 }
 
 const alphaVantageService = new AlphaVantageService();

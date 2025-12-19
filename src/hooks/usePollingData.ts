@@ -30,8 +30,8 @@ export const usePollingData = <T>(
   const hasFetchedOnce = useRef(false);
   const intervalId = useRef<NodeJS.Timeout | null>(null);
 
-  console.log("Polling enabled in usePollingData:", enabled);
-  console.log("Initial polling data:", initialValue); // Log the initial data value before any polling starts
+  if (!enabled) { console.log("Polling disabled in usePollingData."); }
+  //console.log("Initial polling data:", initialValue);
 
 /*    // Track mounted state
    useEffect(() => {
@@ -66,7 +66,7 @@ export const usePollingData = <T>(
   useEffect(() => {
     if (!enabled || !immediate || hasFetchedOnce.current) return;
 
-    console.log("Triggering initial fetch...");
+//    console.log("Triggering initial fetch...");
     hasFetchedOnce.current = true;
     fetchData();
   }, [enabled, immediate, fetchData]);
@@ -75,7 +75,7 @@ export const usePollingData = <T>(
   useEffect(() => {
     if (!enabled || intervalMs <= 0) return;
 
-    console.log('Starting polling loop with interval:', intervalMs);
+//    console.log('Starting polling loop with interval:', intervalMs);
 
     intervalId.current = setInterval(fetchData,intervalMs);
 
@@ -85,11 +85,11 @@ export const usePollingData = <T>(
         clearInterval(intervalId.current);
         intervalId.current = null;
       }
-      console.log('Cleaning up polling interval.');
+//      console.log('Cleaning up polling interval.');
     };
   }, [enabled, intervalMs, fetchData]);
 
-  console.log('Returning data:', data);
+//  console.log('Returning data:', data);
 
   return { data, loading, error, refetch: fetchData };
 };

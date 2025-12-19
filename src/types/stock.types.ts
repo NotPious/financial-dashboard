@@ -37,7 +37,9 @@ export interface PortfolioHolding {
   totalValue: number;
   gainLoss: number;
   gainLossPercent: number;
+  hasQuote: boolean; // indicates to frontend if quote data is available, so default UI can be shown if not
 }
+
 
 export interface MarketIndex {
   name: string;

@@ -8,15 +8,14 @@ import { usePollingData, PollingDataResult } from './usePollingData';
 const FINNHUB_API_KEY = process.env.REACT_APP_FINNHUB_API_KEY || '';
 const FINNHUB_BASE_URL = process.env.REACT_APP_FINNHUB_BASE_URL || '';
 
-const INDICES_POLLING_INTERVAL_MS = Number(process.env.REACT_APP_INDICES_POLLING_INTERVAL_MS || '120000'); // 2 minutes default
+//const INDICES_POLLING_INTERVAL_MS = Number(process.env.REACT_APP_INDICES_POLLING_INTERVAL_MS || '120000'); // 2 minutes default
+
+// Delay between API calls to respect rate limits
+const RATE_LIMIT_DELAY_MS = Number(process.env.REACT_APP_RATE_LIMIT_DELAY_MS || '12000');
 
 // Cooldown after rate limit message
-const RATE_LIMIT_COOLDOWN_MS = Number(process.env.REACT_APP_RATE_LIMIT_COOLDOWN_MS || '30000'); // 30 seconds default
+//const RATE_LIMIT_COOLDOWN_MS = Number(process.env.REACT_APP_RATE_LIMIT_COOLDOWN_MS || '30000'); // 30 seconds default
 const rateLimitedUntil: Record<string, number> = {};
-
-console.log("FINNHUB_API_KEY:", FINNHUB_API_KEY);
-console.log("FINNHUB_BASE_URL:", FINNHUB_BASE_URL);
-console.log("INDICES_POLLING_INTERVAL_MS:", INDICES_POLLING_INTERVAL_MS);
 
 const INDEX_SYMBOLS = [
   { name: 'S&P 500', symbol: 'SPY' },
@@ -65,7 +64,7 @@ export const useMarketIndices = (options?: UseMarketIndicesOptions): PollingData
       } catch (error: any) {
         if (error?.response?.status === 429) {
           console.warn(`Rate limit hit for ${index.symbol}, cooling down...`);
-          rateLimitedUntil[index.symbol] = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+          rateLimitedUntil[index.symbol] = Date.now() + RATE_LIMIT_DELAY_MS;
         } else {
           console.error(`Error fetching data for ${index.symbol}:`, error);
         }
@@ -73,9 +72,7 @@ export const useMarketIndices = (options?: UseMarketIndicesOptions): PollingData
     }
 
     if (updated.length === 0) {
-      console.warn(
-        'Market indices update skipped — no successful responses (preserving previous data).'
-      );
+      console.warn('Market indices update skipped — no successful responses (preserving previous data).');
       return marketIndices;
     }
     setMarketIndices(updated);
@@ -86,16 +83,16 @@ export const useMarketIndices = (options?: UseMarketIndicesOptions): PollingData
   const initialValue: MarketIndex[] =  marketIndices.length > 0 ? marketIndices : [];
 
   // Disable polling when not enabled
-  const interval = enabled ? INDICES_POLLING_INTERVAL_MS : 0;
+  const interval = enabled ? RATE_LIMIT_DELAY_MS : 0;
 
   // ✅ Always fetch once on mount
   const polling = usePollingData(fetchIndices, interval, initialValue, true);
 
-  console.log("Polling data:", polling);
+//  console.log("Polling data:", polling);
 
   // When disabled, return the initial value and stop polling
   if (!enabled) {
-    console.log("Polling disabled in useMarketIndices.");
+//    console.log("Polling disabled in useMarketIndices.");
     return {
       data: initialValue,
       loading: false,

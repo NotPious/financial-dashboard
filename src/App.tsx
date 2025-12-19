@@ -11,16 +11,16 @@ const App: React.FC = () => {
   return (
     <RecoilRoot>
       {/* Only show market section */}
-      <Dashboard debugSection="market" />
+      {/* <Dashboard debugSection="market" /> */}
 
       {/* Only show stock chart */}
       {/* <Dashboard debugSection="stock" /> */}
 
       {/* Only show portfolio */}
-      {/* <Dashboard debugSection="portfolio" /> */}
+      {/* <Dashboard debugSection="portfolio" />  */}
 
       {/* Show all sections */}
-      {/* <Dashboard /> */}
+      <Dashboard />
     </RecoilRoot>
   );
 };

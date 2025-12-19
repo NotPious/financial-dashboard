@@ -3,7 +3,7 @@
  * Displays key market indices and statistics
  */
 
-import React, { useEffect } from 'react';
+//import React, { useEffect } from 'react';
 import { MarketIndex } from '../../types/stock.types';
 import { formatCurrency, formatPercent } from '../../utils/formatters';
 
@@ -14,10 +14,10 @@ interface MarketOverviewProps {
 
 const MarketOverview: React.FC<MarketOverviewProps> = ({ indices, loading = false }) => {
 
-  useEffect(() => {
+/*   useEffect(() => {
     console.log('MarketOverview indices prop:', indices); // Log indices prop
   }, [indices]); // Will log every time indices prop changes
-
+ */
   if (loading) {
     return (
       <div className="card">

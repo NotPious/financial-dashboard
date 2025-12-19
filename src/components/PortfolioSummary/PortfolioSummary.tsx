@@ -13,6 +13,7 @@ interface PortfolioSummaryProps {
   totalGainLoss: number;
   totalGainLossPercent: number;
   loading?: boolean;
+  waitMs?: number;
 }
 
 const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
@@ -21,11 +22,26 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
   totalGainLoss,
   totalGainLossPercent,
   loading = false,
+  waitMs = 0, // 👈 default
 }) => {
+
+  const secondsRemaining = Math.ceil(waitMs / 1000);
+  const showCountdown = loading && waitMs > 0;
+
   if (loading) {
     return (
       <div className="card">
         <h2 className="text-xl font-semibold mb-4">Portfolio Summary</h2>
+
+        <div className="flex items-center gap-3 text-sm text-neutral-600 mb-4">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-300 border-t-primary-600" />
+          {showCountdown ? (
+            <span>Updating portfolio in {secondsRemaining}s (API rate limit)</span>
+          ) : (
+            <span>Loading portfolio data…</span>
+          )}
+        </div>
+
         <div className="animate-pulse space-y-4">
           <div className="h-20 bg-neutral-200 rounded" />
           <div className="h-40 bg-neutral-200 rounded" />
@@ -34,7 +50,14 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
     );
   }
 
+  const holdingsWithQuote = holdings.filter(h => h.hasQuote);
+
+  totalValue = holdingsWithQuote.reduce((sum, h) => sum + h.totalValue, 0);
+  totalGainLoss = holdingsWithQuote.reduce((sum, h) => sum + h.gainLoss, 0);
+  totalGainLossPercent = totalValue !== 0 ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0;
+
   const isPositiveReturn = totalGainLoss >= 0;
+  const allHaveQuotes = holdings.every(h => h.hasQuote); // helper for displaying dashes when data missing for high level totals
 
   return (
     <section
@@ -53,7 +76,7 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
               Total Portfolio Value
             </p>
             <p className="text-3xl font-bold text-primary-900">
-              {formatCurrency(totalValue)}
+              {allHaveQuotes ? formatCurrency(totalValue) : '–'}
             </p>
           </div>
           <div className="text-right">
@@ -65,16 +88,19 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
                 isPositiveReturn ? 'text-success-600' : 'text-danger-600'
               }`}
             >
-              {isPositiveReturn ? '+' : ''}{formatCurrency(totalGainLoss)}
+              {allHaveQuotes
+                ? `${isPositiveReturn ? '+' : ''}${formatCurrency(totalGainLoss)}`
+                : '–'}
             </p>
             <p
               className={`text-sm ${
                 isPositiveReturn ? 'text-success-600' : 'text-danger-600'
               }`}
             >
-              {formatPercent(totalGainLossPercent)}
+              {allHaveQuotes ? formatPercent(totalGainLossPercent) : '–'}
             </p>
           </div>
+
         </div>
       </div>
 
@@ -130,8 +156,9 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
               </tr>
             ) : (
               holdings.map((holding) => {
-                const isPositive = holding.gainLoss >= 0;
-                
+                const isPositive = holding.gainLoss != null && holding.gainLoss >= 0;
+                const hasQuote = holding.hasQuote ?? true; // fallback to true if field not present
+
                 return (
                   <tr
                     key={holding.symbol}
@@ -144,25 +171,25 @@ const PortfolioSummary: React.FC<PortfolioSummaryProps> = ({
                       {holding.shares.toLocaleString()}
                     </td>
                     <td className="py-3 px-4 text-right text-neutral-700">
-                      {formatCurrency(holding.avgCost)}
+                      {hasQuote && holding.avgCost != null ? formatCurrency(holding.avgCost) : '–'}
                     </td>
                     <td className="py-3 px-4 text-right text-neutral-700">
-                      {formatCurrency(holding.currentPrice)}
+                      {hasQuote && holding.currentPrice != null ? formatCurrency(holding.currentPrice) : '–'}
                     </td>
                     <td className="py-3 px-4 text-right font-medium text-neutral-900">
-                      {formatCurrency(holding.totalValue)}
+                      {hasQuote && holding.totalValue != null ? formatCurrency(holding.totalValue) : '–'}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <div
-                        className={`${
-                          isPositive ? 'text-success-600' : 'text-danger-600'
-                        }`}
-                      >
+                      <div className={`${isPositive ? 'text-success-600' : 'text-danger-600'}`}>
                         <div className="font-medium">
-                          {isPositive ? '+' : ''}{formatCurrency(holding.gainLoss)}
+                          {hasQuote && holding.gainLoss != null
+                            ? `${isPositive ? '+' : ''}${formatCurrency(holding.gainLoss)}`
+                            : '–'}
                         </div>
                         <div className="text-sm">
-                          {formatPercent(holding.gainLossPercent)}
+                          {hasQuote && holding.gainLossPercent != null
+                            ? formatPercent(holding.gainLossPercent)
+                            : '–'}
                         </div>
                       </div>
                     </td>

@@ -29,7 +29,7 @@ export const useStockData = (
   symbol: string, 
   interval: 'daily' | 'weekly' | 'monthly' = 'daily', 
   options?: UseStockDataOptions):UseStockDataReturn => {
-  const enabled = options?.enabled ?? true;   // <-- debug flag
+  const enabled = options?.enabled ?? true;   // debug flag
 
   const [, setPortfolio] = useRecoilState(portfolioState);
   const [stockQuotes, setStockQuotes] = useRecoilState(stockQuotesState);
@@ -61,11 +61,20 @@ export const useStockData = (
       setLocalError(null);
       setError(prev => ({ ...prev, [key]: null }));
 
-      // Fetch quote
       const quote = await alphaVantageService.getQuote(symbol);
 
-      if (!quote) {
-        console.warn(`No fresh quote for ${symbol}`);
+      // Only accept quote if it has a price and symbol
+      if (!quote || !quote.symbol || typeof quote.price !== 'number') {
+        console.warn(`Invalid or rate-limited quote for ${symbol}`, quote);
+
+        // Fallback: use cached quote even if stale
+        if (cachedQuote) {
+          console.log(`Using stale cached quote for ${symbol}`);
+          return;
+        }
+
+        setLocalError('Failed to fetch valid quote');
+        setError(prev => ({ ...prev, [key]: 'Failed to fetch valid quote' }));
         return;
       }
 
@@ -94,36 +103,51 @@ export const useStockData = (
       setLocalLoading(false);
       setLoading(prev => ({ ...prev, [key]: false }));
     }
-  }, [enabled, symbol, isQuoteFresh, setStockQuotes, setPortfolio, setLoading, setError]);
+  }, [enabled, symbol, cachedQuote, isQuoteFresh, setStockQuotes, setPortfolio, setLoading, setError]);
 
   // Fetch time series independently to avoid doubling quote requests
   const fetchTimeSeries = useCallback(async () => {
     if (!enabled) return;     // <-- disabled → no API calls
     if (!symbol) return;
 
-    const data = await alphaVantageService.getTimeSeries(symbol, interval);
-    setChartData(data);
+    try {
+      const data = await alphaVantageService.getTimeSeries(symbol, interval);
+      
+      if (Array.isArray(data)) {
+        if (data.length > 0) {
+          // Valid chart data
+          setChartData(data);
+        } else {
+          // Empty array returned, possibly due to rate limit or no data
+          console.info(`[AlphaVantageService] No chart data for ${symbol} (possibly rate-limited or symbol unavailable).`);
+          setChartData([]);
+        }
+      } else {
+        // Unexpected response type
+        console.warn(`[AlphaVantageService] Unexpected chart data for ${symbol}:`, data);
+        setChartData([]);
+      }
+    } catch (err) {
+      console.error(`Error fetching time series for ${symbol}:`, err);
+      setChartData([]);
+    }
   }, [enabled, symbol, interval]);
 
-  /**
-   * Initial quote load (or refresh when symbol changes)
-   */
-  useEffect(() => {
+  // Initial quote load (or refresh when symbol changes)
+/* TODO: [Refactor] Move quote fetching to a separate hook/component, for now it is unused, and Portfolio handles batch quotes
+   useEffect(() => {
     if (!enabled) return;     // <-- do not auto-exec
-    fetchQuote();
+    //    fetchQuote();
   }, [fetchQuote, enabled]);
+*/
 
-  /**
-   * Fetch chart data when symbol or interval changes
-   */
+  // Fetch chart data when symbol or interval changes
   useEffect(() => {
     if (!enabled) return;     // <-- do not auto-exec
     fetchTimeSeries();
   }, [fetchTimeSeries, enabled]);
 
-  /**
-   * Manual refetch action
-   */
+  // Manual refetch action
   const refetch = useCallback(async () => {
     if (!enabled) return;
     await fetchQuote();
@@ -132,7 +156,7 @@ export const useStockData = (
 
   return {
     quote: stockQuotes[symbol] || null,
-    chartData,
+    chartData: chartData || [],
     loading: enabled ? localLoading : false,
     error: enabled ? localError : null,
     refetch,

@@ -10,7 +10,7 @@ export const totalPortfolioValueSelector = selector({
   key: 'totalPortfolioValue',
   get: ({ get }) => {
     const portfolio = get(portfolioState);
-    return portfolio.reduce((sum, holding) => sum + holding.totalValue, 0);
+    return portfolio.reduce((sum, holding) => sum + (holding.totalValue ?? 0), 0);
   },
 });
 
@@ -19,8 +19,8 @@ export const totalPortfolioGainLossSelector = selector({
   key: 'totalPortfolioGainLoss',
   get: ({ get }) => {
     const portfolio = get(portfolioState);
-    const totalGainLoss = portfolio.reduce((sum, holding) => sum + holding.gainLoss, 0);
-    const totalValue = portfolio.reduce((sum, holding) => sum + holding.totalValue, 0);
+    const totalGainLoss = portfolio.reduce((sum, holding) => sum + (holding.gainLoss ?? 0), 0);
+    const totalValue = portfolio.reduce((sum, holding) => sum + (holding.totalValue ?? 0), 0);
     const totalCost = totalValue - totalGainLoss;
     
     return {

@@ -1,8 +1,14 @@
-import { useRecoilState } from 'recoil';
+//import { useRecoilState } from 'recoil';
+import { useRecoilValue } from 'recoil';
 import { portfolioState } from '../state/atoms';
 import { PortfolioHolding } from '../types/stock.types';
 import { usePollingData, PollingDataResult } from './usePollingData';
 import alphaVantageService from '../services/alphaVantage';
+
+/* TODO(STATE): Portfolio polling currently returns derived live data.
+   Recoil remains source of truth for holdings config only.
+   Consider one-way sync or selector-based model later.
+*/
 
 const PORTFOLIO_POLLING_INTERVAL_MS = Number(process.env.REACT_APP_PORTFOLIO_POLLING_INTERVAL_MS || '120000'); // 2 minutes default
 
@@ -11,15 +17,16 @@ const parseEnvPortfolio = (): PortfolioHolding[] => {
   if (!envPortfolio) return [];
 
   return envPortfolio.split(',').map((item) => {
-    const [symbol, shares] = item.split(':');
+    const [symbol, shares, avgCost] = item.split(':');
     return {
       symbol: symbol.trim(),
       shares: Number(shares),
-      avgCost: 0,
+      avgCost: avgCost ? Number(avgCost) : 0,  // default to 0
       currentPrice: 0,
       totalValue: 0,
       gainLoss: 0,
       gainLossPercent: 0,
+      hasQuote: false, // no quote yet
     };
   });
 };
@@ -34,7 +41,7 @@ interface UsePortfolioDataOptions {
 export const usePortfolioData = (options?: UsePortfolioDataOptions): PollingDataResult<PortfolioHolding[]> => {
   const enabled = options?.enabled ?? true;
 
-  const [portfolio, setPortfolio] = useRecoilState(portfolioState);
+  const portfolio = useRecoilValue(portfolioState);
 
   // Use env-based portfolio only if state is initially empty
   const effectivePortfolio = portfolio.length === 0 ? initialPortfolio : portfolio;
@@ -55,32 +62,20 @@ export const usePortfolioData = (options?: UsePortfolioDataOptions): PollingData
       console.error('Failed to fetch batch quotes', err);
     }
 
-    const updated = effectivePortfolio.map((holding) => {
+    return effectivePortfolio.map((holding) => {
       const quote = quotes[holding.symbol];
 
-      if (!quote) {
-        console.error(`No quote data for ${holding.symbol}, using existing values`);
-        return holding; // fallback to existing values
-      }
+      const hasQuote = quote?.price != null;
+      const currentPrice = hasQuote ? quote.price : holding.currentPrice;
+      const totalValue = hasQuote ? currentPrice * holding.shares : holding.totalValue;
+      const gainLoss = hasQuote ? (currentPrice - holding.avgCost) * holding.shares : holding.gainLoss;
+      const gainLossPercent = hasQuote && holding.avgCost !== 0 ? ((currentPrice - holding.avgCost)/holding.avgCost)*100 : holding.gainLossPercent;
 
-    return {
-        ...holding,
-        currentPrice: quote.price,
-        totalValue: quote.price * holding.shares,
-        gainLoss: holding.avgCost
-          ? quote.price * holding.shares - holding.avgCost * holding.shares
-          : 0,
-        gainLossPercent: holding.avgCost 
-          ? ((quote.price - holding.avgCost) / holding.avgCost) * 100
-          : 0,
-      };
+      return { ...holding, currentPrice, totalValue, gainLoss, gainLossPercent, hasQuote };
     });
-
-    setPortfolio(updated);
-    return updated;
   };
 
- // Pass interval = 0 if disabled to stop polling
+  // Pass interval = 0 if disabled to stop polling
   const interval = enabled ? PORTFOLIO_POLLING_INTERVAL_MS : 0;
 
   // Always call hook
