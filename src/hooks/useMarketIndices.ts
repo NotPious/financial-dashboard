@@ -8,13 +8,10 @@ import { usePollingData, PollingDataResult } from './usePollingData';
 const FINNHUB_API_KEY = process.env.REACT_APP_FINNHUB_API_KEY || '';
 const FINNHUB_BASE_URL = process.env.REACT_APP_FINNHUB_BASE_URL || '';
 
-//const INDICES_POLLING_INTERVAL_MS = Number(process.env.REACT_APP_INDICES_POLLING_INTERVAL_MS || '120000'); // 2 minutes default
-
 // Delay between API calls to respect rate limits
 const RATE_LIMIT_DELAY_MS = Number(process.env.REACT_APP_RATE_LIMIT_DELAY_MS || '12000');
 
 // Cooldown after rate limit message
-//const RATE_LIMIT_COOLDOWN_MS = Number(process.env.REACT_APP_RATE_LIMIT_COOLDOWN_MS || '30000'); // 30 seconds default
 const rateLimitedUntil: Record<string, number> = {};
 
 const INDEX_SYMBOLS = [

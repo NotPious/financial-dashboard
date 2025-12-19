@@ -1,46 +1,149 @@
-# Getting Started with Create React App
+# Financial Dashboard
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React-based financial dashboard that provides real-time stock quotes, historical data, and market overview. The application demonstrates a **micro-frontend component architecture**, modular design, and a modern tech stack with TypeScript, Recoil, Tailwind CSS, and Recharts.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Features
 
-### `npm start`
+- **Portfolio Overview** – View real-time quotes and historical price trends for your stock portfolio.
+- **Market Indices** – Track major market indices with automatic polling.
+- **Stock Charts** – Interactive candlestick and line charts with volume bars.
+- **Polling & Rate Limit Handling** – Automatic data refresh with smart handling of Alpha Vantage API rate limits.
+- **Responsive Design** – Fully responsive UI using Tailwind CSS.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+---
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Tech Stack
 
-### `npm test`
+- **React 18** – Component-based UI library
+- **TypeScript** – Static typing and type safety
+- **Tailwind CSS** – Utility-first CSS framework for styling
+- **Recoil** – State management (atoms and selectors for global state)
+- **Recharts** – Data visualization for stock charts (candlestick, line charts, and volume)
+- **Axios** – API requests
+- **Alpha Vantage API** – Stock quotes and historical time series
+- **Micro-frontend component architecture** – Modular, self-contained components for scalable frontends
+- **Jest + React Testing Library** – Unit and integration testing
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## Architecture Overview
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Data Flow Diagram:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+  +----------------+       +----------------+       +----------------+
+  | PortfolioState | ----> | usePollingData | ----> | StockChart     |
+  +----------------+       +----------------+       +----------------+
+          |                         |
+          v                         v
+  +----------------+       +----------------+
+  | MarketIndices  |       | useStockData   |
+  +----------------+       +----------------+
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+**Explanation:**
 
-### `npm run eject`
+- **PortfolioState & MarketIndices** – Recoil atoms store global state for portfolio holdings and index data.
+- **usePollingData** – Custom hook that polls Alpha Vantage API for live quotes with rate-limit handling.
+- **useStockData** – Custom hook for fetching detailed stock data and historical prices.
+- **StockChart** – Recharts component that renders line/candlestick charts and volume bars, using memoized data for performance.
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+---
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Screenshots
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+**Market Indices:**
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+![Market Indices showing current price and change, using Finnhub quote API ](docs/screenshots/market-overview.png)
 
-## Learn More
+**Stock Chart:**
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+![Stock Chart showing close price and volume over time, using Alpha Vantage time series API](docs/screenshots/stock-chart.png)
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+**Portfolio Overview:**
+
+![Portfolio Overview showing gain/loss, using stored data against Alpha Vantage global quote API](docs/screenshots/portfolio-summary.png)
+
+---
+
+## Getting Started
+
+
+1. **Clone this repository:**
+   git clone https://github.com/yourusername/financial-dashboard.git
+    cd financial-dashboard
+
+2. **Install dependencies:**
+   npm install
+
+3. **Set up environment variables:**
+   Create a `.env` file in the root:
+
+        # Alpha Vantage API Configuration
+        REACT_APP_ALPHAVANTAGE_API_KEY=your_api_key_here
+        REACT_APP_ALPHAVANTAGE_BASE_URL=https://www.alphavantage.co/query
+    
+        # FinnHubb API Configuration
+        REACT_APP_FINNHUB_API_KEY=your_api_key_here
+        REACT_APP_FINNHUB_BASE_URL=https://finnhub.io/api/v1/quote
+
+        # Portfolio Configuration (Format: SYMBOL:SHARES:AVG_COST)
+        REACT_APP_PORTFOLIO=IBM:100:250,MSFT:75:320
+
+        # Delay (ms) between API calls to respect Alpha Vantage free tier limit of 5 requests per minute
+        REACT_APP_RATE_LIMIT_DELAY_MS = 12000;
+        
+        # Quote cache freshness window (ms)
+        REACT_APP_QUOTE_TTL_MS=60000
+
+        # Portfolio polling Interval (ms)
+        REACT_APP_PORTFOLIO_POLLING_INTERVAL_MS=120000
+
+        # Environment
+        REACT_APP_ENV=development
+
+4. **Run the development server:**
+   npm start
+
+5. **Run tests:**
+   npm test
+
+---
+
+## Folder Structure
+
+financial-dashboard/
+├── public/             # Static files
+├── src/
+│   ├── components/     # React components
+│   │   ├── Dashboard/
+│   │   ├── Layout/
+│   │   ├── MarketOverview/
+│   │   ├── PortfolioSummary/
+│   │   └── StockChart/
+│   ├── hooks/          # Custom hooks (usePollingData, usePortfolioData, etc.)
+│   ├── services/       # API services (Alpha Vantage)
+│   ├── state/          # Recoil atoms and selectors
+│   ├── types/          # TypeScript type definitions
+│   └── utils/          # Utility functions (calculations, formatters)
+├── .gitignore
+├── package.json
+├── README.md
+├── tailwind.config.js
+└── tsconfig.json
+
+---
+
+## Notes
+
+- This project respects Alpha Vantage free tier rate limits by delaying requests between symbols.
+- Charts are rendered using Recharts with memoized data processing for performance.
+- State management is handled by Recoil for global atoms and selectors.
+- Micro-frontend architecture allows independent, reusable components.
+- Includes basic unit and integration tests using Jest and React Testing Library.
+
+---
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
