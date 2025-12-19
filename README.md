@@ -31,7 +31,7 @@ A React-based financial dashboard that provides real-time stock quotes, historic
 ## Architecture Overview
 
 Data Flow Diagram:
-
+```
   +----------------+       +----------------+       +----------------+
   | PortfolioState | ----> | usePollingData | ----> | StockChart     |
   +----------------+       +----------------+       +----------------+
@@ -40,7 +40,7 @@ Data Flow Diagram:
   +----------------+       +----------------+
   | MarketIndices  |       | useStockData   |
   +----------------+       +----------------+
-
+```
 **Explanation:**
 
 - **PortfolioState & MarketIndices** – Recoil atoms store global state for portfolio holdings and index data.
@@ -111,7 +111,7 @@ Data Flow Diagram:
 ---
 
 ## Folder Structure
-
+```
 financial-dashboard/
 ├── public/             # Static files
 ├── src/
@@ -131,7 +131,7 @@ financial-dashboard/
 ├── README.md
 ├── tailwind.config.js
 └── tsconfig.json
-
+```
 ---
 
 ## Notes
